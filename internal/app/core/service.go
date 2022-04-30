@@ -25,25 +25,27 @@ const (
 
 type LoyaltyService struct {
 	Storage        storage.DBStorage
-	Channel        chan string
 	ServiceAddress string
+	Channel        chan string
+	isNotFinished     bool
 }
 
 func NewLoyaltyService(storage storage.DBStorage, serviceAddress string, ctx context.Context) *LoyaltyService {
 	ch := make(chan string, 10)
-	service := LoyaltyService{Storage: storage, Channel: ch, ServiceAddress: serviceAddress}
+	service := LoyaltyService{Storage: storage, ServiceAddress: serviceAddress, Channel: ch, isNotFinished: true}
 	go service.updateOrderStatuses(ctx)
 	return &service
 }
 
 func (ls *LoyaltyService) updateOrderStatuses(ctx context.Context) {
-	for {
+	for ls.isNotFinished {
 		orderNum := <-ls.Channel
 		fmt.Printf("%s\n", orderNum)
 		resp, err := http.Get(fmt.Sprintf("%s/api/orders/%s", ls.ServiceAddress, orderNum))
 		if err != nil {
-			log.Fatalln(err)
+			log.Printf("Failed to get %s/api/orders/%s\n", ls.ServiceAddress, orderNum)
 		}
+
 		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusTooManyRequests {
@@ -51,42 +53,43 @@ func (ls *LoyaltyService) updateOrderStatuses(ctx context.Context) {
 			time.Sleep(time.Second * 3)
 			ls.Channel <- orderNum
 		} else if resp.StatusCode == http.StatusInternalServerError {
-			log.Fatalln("Something went wrong 500 status for order", orderNum)
+			log.Println("Something went wrong 500 status for order ", orderNum)
+			ls.isNotFinished = false
 			// todo: finish??? invalid????
 		} else if resp.StatusCode == http.StatusOK {
 			b, err := io.ReadAll(resp.Body)
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
 			}
 
 			orderStatus := entities.GetOrderStatusResponse{}
 			if err := json.Unmarshal(b, &orderStatus); err != nil {
-				log.Fatalln("Failed to parse json")
+				log.Println("Failed to parse json")
 				return
 			}
 			if orderStatus.Status == InvalidStatus {
 				log.Println("Invalid status for order ", orderNum)
 				err := ls.Storage.UpdateOrderStatus(ctx, orderNum, InvalidStatus)
 				if err != nil {
-					log.Fatalln("Failed to update status in db: ", err)
+					log.Println("Failed to update status in db: ", err)
 				}
 			} else if orderStatus.Status == ProcessedStatus {
 				log.Println("Processed status for order ", orderNum)
 				accrual := *orderStatus.Accrual
 				err := ls.Storage.UpdateOrderStatusAndAccrual(ctx, orderNum, ProcessedStatus, accrual)
 				if err != nil {
-					log.Fatalln("Failed to update status in db: ", err)
+					log.Println("Failed to update status in db: ", err)
 				}
 				// get user login
 				o, err := ls.Storage.GetOrderIfExists(ctx, orderNum)
 				login := o.Login
 
 				if err != nil {
-					log.Fatalln("Failed to update status in db: ", err)
+					log.Println("Failed to update status in db: ", err)
 				}
 				balance, err := ls.Storage.GetBalance(ctx, login)
 				if err != nil {
-					log.Fatalln("Failed to update status in db: ", err)
+					log.Println("Failed to update status in db: ", err)
 				}
 
 				err = ls.Storage.UpdateBalance(ctx, entities.BalanceModel{
@@ -95,13 +98,13 @@ func (ls *LoyaltyService) updateOrderStatuses(ctx context.Context) {
 					Spent:   balance.Spent,
 				})
 				if err != nil {
-					log.Fatalln("Failed to update status in db: ", err)
+					log.Println("Failed to update status in db: ", err)
 				}
 			} else if orderStatus.Status == ProcessingStatus {
 				log.Println("Processing status for order ", orderNum)
 				err := ls.Storage.UpdateOrderStatus(ctx, orderNum, ProcessingStatus)
 				if err != nil {
-					log.Fatalln("Failed to update status in db: ", err)
+					log.Println("Failed to update status in db: ", err)
 				}
 				time.Sleep(time.Second)
 				ls.Channel <- orderNum
