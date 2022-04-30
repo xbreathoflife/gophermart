@@ -17,11 +17,8 @@ type Handler struct {
 }
 
 func (h *Handler) processCookie(w http.ResponseWriter, r *http.Request) (*http.Cookie, *string) {
-	_, err := r.Cookie(auth.CookieName)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return nil, nil
-	}
+	_, _ = r.Cookie(auth.CookieName)
+
 	uuid := core.GenerateUUID()
 	encryptedUUID, err := core.Encrypt(uuid)
 	if err != nil {
