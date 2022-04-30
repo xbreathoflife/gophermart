@@ -13,8 +13,8 @@ type Config struct {
 
 func Init() Config {
 	cfg := Config{
-		Address:        ":8080",
-		ConnString:     "postgres://postgres:@localhost:5432/postgres",
+		Address:        "localhost:8080",
+		ConnString:     "",
 		ServiceAddress: "",
 	}
 	err := env.Parse(&cfg)

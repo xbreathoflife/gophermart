@@ -11,14 +11,13 @@ import (
 )
 
 type DBStorage struct {
-	ConnString   string
+	ConnString string
 }
 
 func NewDBStorage(connString string) *DBStorage {
 	storage := &DBStorage{ConnString: connString}
 	return storage
 }
-
 
 func (s *DBStorage) connect(_ context.Context) (*sql.DB, error) {
 	if s.ConnString == "" {
@@ -59,13 +58,13 @@ func (s *DBStorage) InsertNewUser(ctx context.Context, user entities.UserModel) 
 	defer conn.Close()
 
 	_, err = conn.ExecContext(ctx,
-		`INSERT INTO users(login, password_hash) VALUES ($1, $2)`,
-		user.Login, user.PasswordHash)
+		`INSERT INTO users(login, password_hash, session) VALUES ($1, $2, $3)`,
+		user.Login, user.PasswordHash, user.Session)
 
 	return err
 }
 
-func (s *DBStorage) InsertNewUserSession(ctx context.Context, userSession entities.UserSessionModel) error {
+func (s *DBStorage) UpdateUserSession(ctx context.Context, userSession entities.UserSessionModel) error {
 	conn, err := s.connect(ctx)
 	if err != nil {
 		return err
@@ -73,7 +72,7 @@ func (s *DBStorage) InsertNewUserSession(ctx context.Context, userSession entiti
 	defer conn.Close()
 
 	_, err = conn.ExecContext(ctx,
-		`INSERT INTO user_session(session_id, login) VALUES ($1, $2)`,
+		`UPDATE users SET session = $1 WHERE login = $2`,
 		userSession.Session, userSession.Login)
 
 	return err
@@ -130,13 +129,13 @@ func (s *DBStorage) UpdateBalance(ctx context.Context, balance entities.BalanceM
 	defer conn.Close()
 
 	_, err = conn.ExecContext(ctx,
-		`UPDATE balance SET balance = $1 AND spent = $2 WHERE login = $3`,
+		`UPDATE balance SET balance = $1, spent = $2 WHERE login = $3`,
 		balance.Balance, balance.Spent, balance.Login)
 
 	return err
 }
 
-func (s *DBStorage) UpdateOrderStatus(ctx context.Context, order entities.OrderModel) error {
+func (s *DBStorage) UpdateOrderStatus(ctx context.Context, orderNum string, status string) error {
 	conn, err := s.connect(ctx)
 	if err != nil {
 		return err
@@ -144,12 +143,12 @@ func (s *DBStorage) UpdateOrderStatus(ctx context.Context, order entities.OrderM
 	defer conn.Close()
 
 	_, err = conn.ExecContext(ctx,
-		`UPDATE orders SET status = $1 WHERE login = $2`, order.Status, order.Login)
+		`UPDATE orders SET status = $1 WHERE order_num = $2`, status, orderNum)
 
 	return err
 }
 
-func (s *DBStorage) UpdateOrderStatusAndAccrual(ctx context.Context, order entities.OrderModel) error {
+func (s *DBStorage) UpdateOrderStatusAndAccrual(ctx context.Context, orderNum string, status string, accrual int64) error {
 	conn, err := s.connect(ctx)
 	if err != nil {
 		return err
@@ -157,8 +156,8 @@ func (s *DBStorage) UpdateOrderStatusAndAccrual(ctx context.Context, order entit
 	defer conn.Close()
 
 	_, err = conn.ExecContext(ctx,
-		`UPDATE orders SET status = $1 AND accrual = $2 WHERE login = $3`,
-		order.Status, order.Accrual, order.Login)
+		`UPDATE orders SET status = $1, accrual = $2 WHERE order_num = $3`,
+		status, accrual, orderNum)
 
 	return err
 }
@@ -177,7 +176,6 @@ func (s *DBStorage) GetUserIfExists(ctx context.Context, login string) (*entitie
 		`SELECT login, password_hash FROM users WHERE login = $1`, login)
 	err = row.Scan(&user.Login, &user.PasswordHash)
 
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -188,7 +186,7 @@ func (s *DBStorage) GetUserIfExists(ctx context.Context, login string) (*entitie
 	return &user, nil
 }
 
-func (s *DBStorage) GetUserSessionIfExists(ctx context.Context, session string) (*entities.UserSessionModel, error) {
+func (s *DBStorage) GetUserBySessionIfExists(ctx context.Context, session string) (*entities.UserSessionModel, error) {
 	conn, err := s.connect(ctx)
 	if err != nil {
 		return nil, err
@@ -197,9 +195,8 @@ func (s *DBStorage) GetUserSessionIfExists(ctx context.Context, session string) 
 	defer conn.Close()
 	var userSession entities.UserSessionModel
 	row := conn.QueryRowContext(ctx,
-		`SELECT session_id, login FROM user_session WHERE session_id = $1`, session)
-	err = row.Scan(&userSession.Session, &userSession.Login)
-
+		`SELECT login, session FROM users WHERE session = $1`, session)
+	err = row.Scan(&userSession.Login, &userSession.Session)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -239,7 +236,7 @@ func (s *DBStorage) GetOrdersForUser(ctx context.Context, login string) ([]entit
 	return orders, nil
 }
 
-func (s *DBStorage) GetOrderIfExists(ctx context.Context, orderNum int) (*entities.OrderModel, error) {
+func (s *DBStorage) GetOrderIfExists(ctx context.Context, orderNum string) (*entities.OrderModel, error) {
 	conn, err := s.connect(ctx)
 	if err != nil {
 		return nil, err
@@ -248,9 +245,9 @@ func (s *DBStorage) GetOrderIfExists(ctx context.Context, orderNum int) (*entiti
 	defer conn.Close()
 	var order entities.OrderModel
 	row := conn.QueryRowContext(ctx,
-		`SELECT order_num, login, uploaded_at, status, accrual FROM orders
+		`SELECT order_num, login, uploaded_at, status FROM orders
 				WHERE order_num = $1`, orderNum)
-	err = row.Scan(&order.OrderNum, &order.Login, &order.UploadedAt, &order.Status, &order.Accrual)
+	err = row.Scan(&order.OrderNum, &order.Login, &order.UploadedAt, &order.Status)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
