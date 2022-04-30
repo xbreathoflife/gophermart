@@ -12,15 +12,15 @@ CREATE TABLE IF NOT EXISTS orders
     login       TEXT                     NOT NULL REFERENCES users (login),
     uploaded_at TIMESTAMP WITH TIME ZONE NOT NULL,
     status      TEXT                     NOT NULL,
-    accrual     INT
+    accrual     NUMERIC
 );
 
 CREATE TABLE IF NOT EXISTS balance
 (
     id      SERIAL PRIMARY KEY,
-    login   TEXT NOT NULL REFERENCES users (login),
-    balance INT  NOT NULL DEFAULT 0,
-    spent   INT  NOT NULL DEFAULT 0
+    login   TEXT     NOT NULL REFERENCES users (login),
+    balance NUMERIC  NOT NULL DEFAULT 0,
+    spent   NUMERIC  NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS balance_withdrawals
@@ -28,6 +28,6 @@ CREATE TABLE IF NOT EXISTS balance_withdrawals
     id           SERIAL PRIMARY KEY,
     login        TEXT                     NOT NULL REFERENCES users (login),
     order_num    TEXT                     NOT NULL,
-    sum          INT                      NOT NULL,
+    sum          NUMERIC                  NOT NULL,
     processed_at TIMESTAMP WITH TIME ZONE NOT NULL
 );

@@ -148,7 +148,7 @@ func (s *DBStorage) UpdateOrderStatus(ctx context.Context, orderNum string, stat
 	return err
 }
 
-func (s *DBStorage) UpdateOrderStatusAndAccrual(ctx context.Context, orderNum string, status string, accrual int64) error {
+func (s *DBStorage) UpdateOrderStatusAndAccrual(ctx context.Context, orderNum string, status string, accrual float64) error {
 	conn, err := s.connect(ctx)
 	if err != nil {
 		return err

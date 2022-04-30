@@ -64,7 +64,8 @@ func (ls *LoyaltyService) updateOrderStatuses(ctx context.Context) {
 
 			orderStatus := entities.GetOrderStatusResponse{}
 			if err := json.Unmarshal(b, &orderStatus); err != nil {
-				log.Println("Failed to parse json")
+				log.Println("Failed to parse json", err)
+				log.Println("body: ", b)
 				return
 			}
 			if orderStatus.Status == InvalidStatus {
@@ -106,11 +107,9 @@ func (ls *LoyaltyService) updateOrderStatuses(ctx context.Context) {
 				if err != nil {
 					log.Println("Failed to update status in db: ", err)
 				}
-				time.Sleep(time.Second)
 				ls.Channel <- orderNum
 			} else if orderStatus.Status == RegisteredStatus {
 				log.Println("New status for order ", orderNum)
-				time.Sleep(time.Second)
 				ls.Channel <- orderNum
 			}
 		}
@@ -202,9 +201,9 @@ func (ls *LoyaltyService) GetOrdersForUser(ctx context.Context, login string) ([
 	}
 	var ordersResponse []entities.OrderResponse
 	for _, o := range orders {
-		var accrual *int64 = nil
+		var accrual *float64 = nil
 		if o.Accrual.Valid {
-			accrual = &o.Accrual.Int64
+			accrual = &(o.Accrual.Float64)
 		}
 		ordersResponse = append(ordersResponse, entities.OrderResponse{
 			OrderNum:   o.OrderNum,
