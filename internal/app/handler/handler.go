@@ -18,6 +18,10 @@ type Handler struct {
 
 func (h *Handler) processCookie(w http.ResponseWriter, r *http.Request) (*http.Cookie, *string) {
 	_, err := r.Cookie(auth.CookieName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, nil
+	}
 	uuid := core.GenerateUUID()
 	encryptedUUID, err := core.Encrypt(uuid)
 	if err != nil {
@@ -135,7 +139,7 @@ func (h *Handler) PostNewOrderHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	orderNum := string(b)
-	err, statusCode := h.Service.CreateNewOrder(ctx, sessionModel.Login, orderNum)
+	statusCode, err := h.Service.CreateNewOrder(ctx, sessionModel.Login, orderNum)
 	if err != nil {
 		http.Error(w, err.Error(), statusCode)
 		return
@@ -220,7 +224,7 @@ func (h *Handler) PostBalanceWithdraw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err, statusCode := h.Service.ProcessBalanceWithdraw(ctx, sessionModel.Login, bw)
+	statusCode, err := h.Service.ProcessBalanceWithdraw(ctx, sessionModel.Login, bw)
 	if err != nil {
 		http.Error(w, err.Error(), statusCode)
 		return

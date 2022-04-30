@@ -44,6 +44,7 @@ func (ls *LoyaltyService) updateOrderStatuses(ctx context.Context) {
 		if err != nil {
 			log.Fatalln(err)
 		}
+		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusTooManyRequests {
 			log.Println("Too many requests status")
@@ -137,7 +138,7 @@ func (ls *LoyaltyService) CheckUserCredentials(ctx context.Context, user entitie
 	if err != nil {
 		return err
 	}
-	if prevUser != nil || (prevUser.PasswordHash != user.Password && prevUser.Login != user.Login) {
+	if prevUser == nil || (prevUser.PasswordHash != user.Password && prevUser.Login != user.Login) {
 		return errors.NewWrongDataError(prevUser.Login)
 	}
 
@@ -159,20 +160,20 @@ func (ls *LoyaltyService) GetUserBySession(ctx context.Context, session string) 
 	return sessionModel, nil
 }
 
-func (ls *LoyaltyService) CreateNewOrder(ctx context.Context, login string, orderNum string) (error, int) {
+func (ls *LoyaltyService) CreateNewOrder(ctx context.Context, login string, orderNum string) (int, error) {
 	if !luhn.Valid(orderNum) {
-		return errors.NewWrongDataError(orderNum), http.StatusUnprocessableEntity
+		return http.StatusUnprocessableEntity, errors.NewWrongDataError(orderNum)
 	}
 
 	order, err := ls.Storage.GetOrderIfExists(ctx, orderNum)
 	if err != nil {
-		return err, http.StatusInternalServerError
+		return http.StatusInternalServerError, err
 	}
 	if order != nil {
 		if order.Login == login {
-			return nil, http.StatusOK
+			return http.StatusOK, nil
 		}
-		return errors.NewDuplicateError(orderNum), http.StatusConflict
+		return http.StatusConflict, errors.NewDuplicateError(orderNum)
 	}
 
 	err = ls.Storage.InsertNewOrder(ctx, entities.OrderModel{
@@ -182,13 +183,13 @@ func (ls *LoyaltyService) CreateNewOrder(ctx context.Context, login string, orde
 		Status:     NewStatus,
 	})
 	if err != nil {
-		return err, http.StatusInternalServerError
+		return http.StatusInternalServerError, err
 	}
 
 	// todo: add to queue
 	ls.Channel <- orderNum // отправляем результат в канал
 
-	return nil, http.StatusAccepted
+	return http.StatusAccepted, nil
 }
 
 func (ls *LoyaltyService) GetOrdersForUser(ctx context.Context, login string) ([]entities.OrderResponse, error) {
@@ -221,18 +222,18 @@ func (ls *LoyaltyService) GetUsersBalance(ctx context.Context, login string) (*e
 	return balance, nil
 }
 
-func (ls *LoyaltyService) ProcessBalanceWithdraw(ctx context.Context, login string, bw entities.BalanceWithdrawRequest) (error, int) {
+func (ls *LoyaltyService) ProcessBalanceWithdraw(ctx context.Context, login string, bw entities.BalanceWithdrawRequest) (int, error) {
 	if !luhn.Valid(bw.Order) {
-		return errors.NewWrongDataError(bw.Order), http.StatusUnprocessableEntity
+		return http.StatusUnprocessableEntity, errors.NewWrongDataError(bw.Order)
 	}
 
 	balance, err := ls.Storage.GetBalance(ctx, login)
 	if err != nil {
-		return err, http.StatusInternalServerError
+		return http.StatusInternalServerError, err
 	}
 
 	if balance.Balance < bw.Sum {
-		return errors2.New("Not enough money."), http.StatusPaymentRequired
+		return http.StatusPaymentRequired, errors2.New("not enough money")
 	}
 
 	err = ls.Storage.UpdateBalance(ctx, entities.BalanceModel{
@@ -241,7 +242,7 @@ func (ls *LoyaltyService) ProcessBalanceWithdraw(ctx context.Context, login stri
 		Spent:   balance.Spent + bw.Sum,
 	})
 	if err != nil {
-		return err, http.StatusInternalServerError
+		return http.StatusInternalServerError, err
 	}
 
 	err = ls.Storage.InsertNewBalanceWithdrawals(ctx, entities.BalanceWithdrawalsModel{
@@ -251,10 +252,10 @@ func (ls *LoyaltyService) ProcessBalanceWithdraw(ctx context.Context, login stri
 		ProcessedAt: time.Now(),
 	})
 	if err != nil {
-		return err, http.StatusInternalServerError
+		return http.StatusInternalServerError, err
 	}
 
-	return nil, http.StatusOK
+	return http.StatusOK, nil
 }
 
 func (ls *LoyaltyService) GetWithdrawalsForUser(ctx context.Context, login string) ([]entities.BalanceWithdrawalsResponse, error) {
