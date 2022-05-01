@@ -24,16 +24,18 @@ const (
 )
 
 type LoyaltyService struct {
-	Storage        storage.DBStorage
+	Storage        storage.Storage
 	ServiceAddress string
 	Channel        chan string
 	isNotFinished     bool
 }
 
-func NewLoyaltyService(storage storage.DBStorage, serviceAddress string, ctx context.Context) *LoyaltyService {
+func NewLoyaltyService(storage storage.Storage, serviceAddress string, ctx context.Context) *LoyaltyService {
 	ch := make(chan string, 10)
 	service := LoyaltyService{Storage: storage, ServiceAddress: serviceAddress, Channel: ch, isNotFinished: true}
-	go service.updateOrderStatuses(ctx)
+	if serviceAddress != "" {
+		go service.updateOrderStatuses(ctx)
+	}
 	return &service
 }
 
@@ -140,7 +142,7 @@ func (ls *LoyaltyService) CheckUserCredentials(ctx context.Context, user entitie
 	if err != nil {
 		return err
 	}
-	if prevUser == nil || (prevUser.PasswordHash != user.Password && prevUser.Login != user.Login) {
+	if prevUser == nil || (prevUser.PasswordHash != user.Password || prevUser.Login != user.Login) {
 		return errors.NewWrongDataError(prevUser.Login)
 	}
 

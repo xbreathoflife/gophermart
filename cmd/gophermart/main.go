@@ -34,8 +34,8 @@ func main() {
 
 	dbStorage := storage.NewDBStorage(conf.ConnString)
 
-	gophermartServer := server.NewGothServer(*dbStorage, conf.ServiceAddress)
-	r := gophermartServer.URLHandler()
+	gophermartServer := server.NewGothServer(dbStorage, conf.ServiceAddress)
+	r := gophermartServer.ServerHandler()
 
 	log.Fatal(http.ListenAndServe(conf.Address, r))
 }

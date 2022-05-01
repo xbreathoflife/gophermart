@@ -13,11 +13,11 @@ import (
 )
 
 type gophServer struct {
-	storage      storage.DBStorage
+	storage      storage.Storage
 	handlers     *handler.Handler
 }
 
-func NewGothServer(storage storage.DBStorage, serviceAddress string) *gophServer {
+func NewGothServer(storage storage.Storage, serviceAddress string) *gophServer {
 	ctx := context.Background()
 	err := storage.Init(ctx)
 	if err != nil {
@@ -30,7 +30,7 @@ func NewGothServer(storage storage.DBStorage, serviceAddress string) *gophServer
 	return &gophServer{storage: storage, handlers: &handlers}
 }
 
-func (gs *gophServer) URLHandler() *chi.Mux {
+func (gs *gophServer) ServerHandler() *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
