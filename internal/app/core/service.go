@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"unicode"
 )
 
 const (
@@ -164,7 +165,20 @@ func (ls *LoyaltyService) GetUserBySession(ctx context.Context, session string) 
 	return sessionModel, nil
 }
 
+func IsNumber(s string) bool {
+	for _, r := range s {
+		if !unicode.IsNumber(r) {
+			return false
+		}
+	}
+	return true
+}
+
 func (ls *LoyaltyService) CreateNewOrder(ctx context.Context, login string, orderNum string) (int, error) {
+	if !IsNumber(orderNum) {
+		return http.StatusBadRequest, errors2.New("not a number")
+	}
+
 	if !luhn.Valid(orderNum) {
 		return http.StatusUnprocessableEntity, errors.NewWrongDataError(orderNum)
 	}
