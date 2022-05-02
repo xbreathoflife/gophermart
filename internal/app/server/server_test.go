@@ -409,6 +409,9 @@ func TestServer_Withdrawals(t *testing.T) {
 			err = json.Unmarshal(wdResult, &actualWd)
 			require.NoError(t, err)
 			assert.Equal(t, actualWd, tt.want.withdrawals)
+
+			err = result.Body.Close()
+			require.NoError(t, err)
 		})
 	}
 }
