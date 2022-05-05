@@ -13,8 +13,10 @@ import (
 )
 
 type gophServer struct {
-	storage      storage.Storage
-	handlers     *handler.Handler
+	storage        storage.Storage
+	balanceHandler *handler.BalanceHandler
+	orderHandler   *handler.OrderHandler
+	userHandler    *handler.UserHandler
 }
 
 func NewGothServer(storage storage.Storage, serviceAddress string) *gophServer {
@@ -24,10 +26,15 @@ func NewGothServer(storage storage.Storage, serviceAddress string) *gophServer {
 		log.Printf("error while initializing storage: %v", err)
 		return nil
 	}
-	service := core.NewLoyaltyService(storage, serviceAddress, ctx)
-	handlers := handler.Handler{Service: service}
+	balanceService := core.NewBalanceService(storage)
+	orderService := core.NewOrderService(storage, serviceAddress, ctx)
+	userService := core.NewUserService(storage)
 
-	return &gophServer{storage: storage, handlers: &handlers}
+	balanceHandler := handler.BalanceHandler{Service: balanceService, UserService: userService}
+	orderHandler := handler.OrderHandler{Service: orderService, UserService: userService}
+	userHandler := handler.UserHandler{Service: userService}
+
+	return &gophServer{storage: storage, balanceHandler: &balanceHandler, orderHandler: &orderHandler, userHandler: &userHandler}
 }
 
 func (gs *gophServer) ServerHandler() *chi.Mux {
@@ -41,32 +48,32 @@ func (gs *gophServer) ServerHandler() *chi.Mux {
 		r.Use(auth.CheckAuth)
 
 		r.Post("/api/user/orders", func(rw http.ResponseWriter, r *http.Request) {
-			gs.handlers.PostNewOrderHandler(rw, r)
+			gs.orderHandler.PostNewOrderHandler(rw, r)
 		})
 
 		r.Get("/api/user/orders", func(rw http.ResponseWriter, r *http.Request) {
-			gs.handlers.GetOrders(rw, r)
+			gs.orderHandler.GetOrders(rw, r)
 		})
 
 		r.Get("/api/user/balance", func(rw http.ResponseWriter, r *http.Request) {
-			gs.handlers.GetBalance(rw, r)
+			gs.balanceHandler.GetBalance(rw, r)
 		})
 
 		r.Post("/api/user/balance/withdraw", func(rw http.ResponseWriter, r *http.Request) {
-			gs.handlers.PostBalanceWithdraw(rw, r)
+			gs.balanceHandler.PostBalanceWithdraw(rw, r)
 		})
 
 		r.Get("/api/user/balance/withdrawals", func(rw http.ResponseWriter, r *http.Request) {
-			gs.handlers.GetBalanceWithdrawals(rw, r)
+			gs.balanceHandler.GetBalanceWithdrawals(rw, r)
 		})
 	})
 
 	r.Post("/api/user/register", func(rw http.ResponseWriter, r *http.Request) {
-		gs.handlers.RegisterHandler(rw, r)
+		gs.userHandler.RegisterHandler(rw, r)
 	})
 
 	r.Post("/api/user/login", func(rw http.ResponseWriter, r *http.Request) {
-		gs.handlers.LoginHandler(rw, r)
+		gs.userHandler.LoginHandler(rw, r)
 	})
 
 	return r
