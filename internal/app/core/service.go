@@ -51,15 +51,15 @@ func (ls *LoyaltyService) updateOrderStatuses(ctx context.Context) {
 
 		defer resp.Body.Close()
 
-		if resp.StatusCode == http.StatusTooManyRequests {
+		switch resp.StatusCode {
+		case http.StatusTooManyRequests:
 			log.Println("Too many requests status")
 			time.Sleep(time.Second * 3)
 			ls.Channel <- orderNum
-		} else if resp.StatusCode == http.StatusInternalServerError {
+		case http.StatusInternalServerError:
 			log.Println("Something went wrong 500 status for order ", orderNum)
 			ls.isNotFinished = false
-			// todo: finish??? invalid????
-		} else if resp.StatusCode == http.StatusOK {
+		case http.StatusOK:
 			b, err := io.ReadAll(resp.Body)
 			if err != nil {
 				log.Println(err)
@@ -71,13 +71,14 @@ func (ls *LoyaltyService) updateOrderStatuses(ctx context.Context) {
 				log.Println("body: ", b)
 				return
 			}
-			if orderStatus.Status == InvalidStatus {
+			switch orderStatus.Status {
+			case InvalidStatus:
 				log.Println("Invalid status for order ", orderNum)
 				err := ls.Storage.UpdateOrderStatus(ctx, orderNum, InvalidStatus)
 				if err != nil {
 					log.Println("Failed to update status in db: ", err)
 				}
-			} else if orderStatus.Status == ProcessedStatus {
+			case ProcessedStatus:
 				log.Println("Processed status for order ", orderNum)
 				accrual := *orderStatus.Accrual
 				err := ls.Storage.UpdateOrderStatusAndAccrual(ctx, orderNum, ProcessedStatus, accrual)
@@ -104,14 +105,14 @@ func (ls *LoyaltyService) updateOrderStatuses(ctx context.Context) {
 				if err != nil {
 					log.Println("Failed to update status in db: ", err)
 				}
-			} else if orderStatus.Status == ProcessingStatus {
+			case ProcessingStatus:
 				log.Println("Processing status for order ", orderNum)
 				err := ls.Storage.UpdateOrderStatus(ctx, orderNum, ProcessingStatus)
 				if err != nil {
 					log.Println("Failed to update status in db: ", err)
 				}
 				ls.Channel <- orderNum
-			} else if orderStatus.Status == RegisteredStatus {
+			case RegisteredStatus:
 				log.Println("New status for order ", orderNum)
 				ls.Channel <- orderNum
 			}
