@@ -20,15 +20,16 @@ const (
 )
 
 type AccrualService struct {
-	Storage        storage.Storage
+	OrderStorage   storage.OrderStorage
+	BalanceStorage storage.BalanceStorage
 	ServiceAddress string
 	Channel        chan string
 	isNotFinished  bool
 }
 
-func NewAccrualService(storage storage.Storage, serviceAddress string, ctx context.Context) *AccrualService {
+func NewAccrualService(orderStorage storage.OrderStorage, balanceStorage storage.BalanceStorage, serviceAddress string, ctx context.Context) *AccrualService {
 	ch := make(chan string, 10)
-	service := AccrualService{Storage: storage, ServiceAddress: serviceAddress, Channel: ch, isNotFinished: true}
+	service := AccrualService{OrderStorage: orderStorage, BalanceStorage: balanceStorage, ServiceAddress: serviceAddress, Channel: ch, isNotFinished: true}
 	if serviceAddress != "" {
 		go service.updateOrderStatuses(ctx)
 	}
@@ -69,30 +70,30 @@ func (as *AccrualService) updateOrderStatuses(ctx context.Context) {
 			switch orderStatus.Status {
 			case InvalidStatus:
 				log.Println("Invalid status for order ", orderNum)
-				err := as.Storage.UpdateOrderStatus(ctx, orderNum, InvalidStatus)
+				err := as.OrderStorage.UpdateOrderStatus(ctx, orderNum, InvalidStatus)
 				if err != nil {
 					log.Println("Failed to update status in db: ", err)
 				}
 			case ProcessedStatus:
 				log.Println("Processed status for order ", orderNum)
 				accrual := *orderStatus.Accrual
-				err := as.Storage.UpdateOrderStatusAndAccrual(ctx, orderNum, ProcessedStatus, accrual)
+				err := as.OrderStorage.UpdateOrderStatusAndAccrual(ctx, orderNum, ProcessedStatus, accrual)
 				if err != nil {
 					log.Println("Failed to update status in db: ", err)
 				}
 				// get user login
-				o, err := as.Storage.GetOrderIfExists(ctx, orderNum)
+				o, err := as.OrderStorage.GetOrderIfExists(ctx, orderNum)
 				login := o.Login
 
 				if err != nil {
 					log.Println("Failed to update status in db: ", err)
 				}
-				balance, err := as.Storage.GetBalance(ctx, login)
+				balance, err := as.BalanceStorage.GetBalance(ctx, login)
 				if err != nil {
 					log.Println("Failed to update status in db: ", err)
 				}
 
-				err = as.Storage.UpdateBalance(ctx, entities.BalanceModel{
+				err = as.BalanceStorage.UpdateBalance(ctx, entities.BalanceModel{
 					Login:   login,
 					Balance: balance.Balance + accrual,
 					Spent:   balance.Spent,
@@ -102,7 +103,7 @@ func (as *AccrualService) updateOrderStatuses(ctx context.Context) {
 				}
 			case ProcessingStatus:
 				log.Println("Processing status for order ", orderNum)
-				err := as.Storage.UpdateOrderStatus(ctx, orderNum, ProcessingStatus)
+				err := as.OrderStorage.UpdateOrderStatus(ctx, orderNum, ProcessingStatus)
 				if err != nil {
 					log.Println("Failed to update status in db: ", err)
 				}

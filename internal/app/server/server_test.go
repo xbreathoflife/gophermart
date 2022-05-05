@@ -78,16 +78,18 @@ func TestServer_RegisterLogin(t *testing.T) {
 
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	repo := mocks.NewMockStorage(mockCtrl)
-	repo.EXPECT().Init(gomock.Any())
-	repo.EXPECT().GetUserIfExists(gomock.Any(), gomock.Eq("hello")).Return(nil, nil).MinTimes(0)
-	repo.EXPECT().GetUserIfExists(gomock.Any(), gomock.Eq("goodbye")).Return(
-		&entities.UserModel{Login: "goodbye", PasswordHash: "123456", Session: "123"}, nil).MinTimes(0)
-	repo.EXPECT().InsertNewUser(gomock.Any(), gomock.Any()).MinTimes(0)
-	repo.EXPECT().InsertNewBalance(gomock.Any(), gomock.Any()).MinTimes(0)
-	repo.EXPECT().UpdateUserSession(gomock.Any(), gomock.Any()).MinTimes(0)
+	userRepo := mocks.NewMockUserStorage(mockCtrl)
+	balanceRepo := mocks.NewMockBalanceStorage(mockCtrl)
+	orderRepo := mocks.NewMockOrderStorage(mockCtrl)
 
-	server := NewGothServer(repo, "")
+	userRepo.EXPECT().GetUserIfExists(gomock.Any(), gomock.Eq("hello")).Return(nil, nil).MinTimes(0)
+	userRepo.EXPECT().GetUserIfExists(gomock.Any(), gomock.Eq("goodbye")).Return(
+		&entities.UserModel{Login: "goodbye", PasswordHash: "123456", Session: "123"}, nil).MinTimes(0)
+	userRepo.EXPECT().InsertNewUser(gomock.Any(), gomock.Any()).MinTimes(0)
+	balanceRepo.EXPECT().InsertNewBalance(gomock.Any(), gomock.Any()).MinTimes(0)
+	userRepo.EXPECT().UpdateUserSession(gomock.Any(), gomock.Any()).MinTimes(0)
+
+	server := NewGothServer(balanceRepo, orderRepo, userRepo, "")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body, err := json.Marshal(tt.userData)
@@ -168,33 +170,34 @@ func TestServer_InsertNewOrder(t *testing.T) {
 
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	repo := mocks.NewMockStorage(mockCtrl)
-	repo.EXPECT().Init(gomock.Any())
-	repo.EXPECT().GetUserIfExists(gomock.Any(), gomock.Eq("hello")).Return(
+	userRepo := mocks.NewMockUserStorage(mockCtrl)
+	balanceRepo := mocks.NewMockBalanceStorage(mockCtrl)
+	orderRepo := mocks.NewMockOrderStorage(mockCtrl)
+	userRepo.EXPECT().GetUserIfExists(gomock.Any(), gomock.Eq("hello")).Return(
 		&entities.UserModel{Login: "hello", PasswordHash: "123456", Session: "123"}, nil).MinTimes(0)
-	repo.EXPECT().UpdateUserSession(gomock.Any(), gomock.Any()).MinTimes(0)
-	repo.EXPECT().GetUserBySessionIfExists(gomock.Any(), gomock.Any()).Return(
+	userRepo.EXPECT().UpdateUserSession(gomock.Any(), gomock.Any()).MinTimes(0)
+	userRepo.EXPECT().GetUserBySessionIfExists(gomock.Any(), gomock.Any()).Return(
 		&entities.UserSessionModel{Login: "hello", Session: "123"}, nil).MinTimes(0)
-	repo.EXPECT().GetOrderIfExists(gomock.Any(), "2377225624").Return(nil, nil).MinTimes(0)
+	orderRepo.EXPECT().GetOrderIfExists(gomock.Any(), "2377225624").Return(nil, nil).MinTimes(0)
 
 	orderTime, err := time.Parse(time.RFC3339, "2022-04-30T20:00:00+03:00")
 	require.NoError(t, err)
 
-	repo.EXPECT().GetOrderIfExists(gomock.Any(), "12345678903").Return(
+	orderRepo.EXPECT().GetOrderIfExists(gomock.Any(), "12345678903").Return(
 		&entities.OrderModel{OrderNum: "12345678903",
 			Login:      "hello",
 			UploadedAt: orderTime,
 			Status:     "NEW",
 		}, nil).MinTimes(0)
-	repo.EXPECT().GetOrderIfExists(gomock.Any(), "562246784655").Return(
+	orderRepo.EXPECT().GetOrderIfExists(gomock.Any(), "562246784655").Return(
 		&entities.OrderModel{OrderNum: "562246784655",
 			Login:      "goodbye",
 			UploadedAt: orderTime,
 			Status:     "NEW",
 		}, nil).MinTimes(0)
-	repo.EXPECT().InsertNewOrder(gomock.Any(), gomock.Any()).MinTimes(0)
+	orderRepo.EXPECT().InsertNewOrder(gomock.Any(), gomock.Any()).MinTimes(0)
 
-	server := NewGothServer(repo, "")
+	server := NewGothServer(balanceRepo, orderRepo, userRepo, "")
 	cookie := checkAuth(server, t)
 
 	for _, tt := range tests {
@@ -262,18 +265,19 @@ func TestServer_GetOrders(t *testing.T) {
 
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	repo := mocks.NewMockStorage(mockCtrl)
-	repo.EXPECT().Init(gomock.Any())
-	repo.EXPECT().GetUserIfExists(gomock.Any(), gomock.Eq("hello")).Return(
+	userRepo := mocks.NewMockUserStorage(mockCtrl)
+	balanceRepo := mocks.NewMockBalanceStorage(mockCtrl)
+	orderRepo := mocks.NewMockOrderStorage(mockCtrl)
+	userRepo.EXPECT().GetUserIfExists(gomock.Any(), gomock.Eq("hello")).Return(
 		&entities.UserModel{Login: "hello", PasswordHash: "123456", Session: "123"}, nil).MinTimes(0)
-	repo.EXPECT().UpdateUserSession(gomock.Any(), gomock.Any()).MinTimes(0)
-	repo.EXPECT().GetUserBySessionIfExists(gomock.Any(), gomock.Any()).Return(
+	userRepo.EXPECT().UpdateUserSession(gomock.Any(), gomock.Any()).MinTimes(0)
+	userRepo.EXPECT().GetUserBySessionIfExists(gomock.Any(), gomock.Any()).Return(
 		&entities.UserSessionModel{Login: "hello", Session: "123"}, nil).MinTimes(0)
 
-	repo.EXPECT().GetOrdersForUser(gomock.Any(), "hello").Return(
+	orderRepo.EXPECT().GetOrdersForUser(gomock.Any(), "hello").Return(
 		orders, nil).MinTimes(0)
 
-	server := NewGothServer(repo, "")
+	server := NewGothServer(balanceRepo, orderRepo, userRepo, "")
 	cookie := checkAuth(server, t)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/user/orders", bytes.NewBuffer(nil))
@@ -299,18 +303,19 @@ func TestServer_GetOrders(t *testing.T) {
 func TestServer_GetBalance(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	repo := mocks.NewMockStorage(mockCtrl)
-	repo.EXPECT().Init(gomock.Any())
-	repo.EXPECT().GetUserIfExists(gomock.Any(), gomock.Eq("hello")).Return(
+	userRepo := mocks.NewMockUserStorage(mockCtrl)
+	balanceRepo := mocks.NewMockBalanceStorage(mockCtrl)
+	orderRepo := mocks.NewMockOrderStorage(mockCtrl)
+	userRepo.EXPECT().GetUserIfExists(gomock.Any(), gomock.Eq("hello")).Return(
 		&entities.UserModel{Login: "hello", PasswordHash: "123456", Session: "123"}, nil).MinTimes(0)
-	repo.EXPECT().UpdateUserSession(gomock.Any(), gomock.Any()).MinTimes(0)
-	repo.EXPECT().GetUserBySessionIfExists(gomock.Any(), gomock.Any()).Return(
+	userRepo.EXPECT().UpdateUserSession(gomock.Any(), gomock.Any()).MinTimes(0)
+	userRepo.EXPECT().GetUserBySessionIfExists(gomock.Any(), gomock.Any()).Return(
 		&entities.UserSessionModel{Login: "hello", Session: "123"}, nil).MinTimes(0)
 
 	expectedBalance := entities.BalanceModel{Login: "hello", Balance: 510.5, Spent: 330}
-	repo.EXPECT().GetBalance(gomock.Any(), gomock.Eq("hello")).Return(&expectedBalance, nil)
+	balanceRepo.EXPECT().GetBalance(gomock.Any(), gomock.Eq("hello")).Return(&expectedBalance, nil)
 
-	server := NewGothServer(repo, "")
+	server := NewGothServer(balanceRepo, orderRepo, userRepo, "")
 	cookie := checkAuth(server, t)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/user/balance", bytes.NewBuffer(nil))
@@ -364,22 +369,23 @@ func TestServer_Withdrawals(t *testing.T) {
 
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	repo := mocks.NewMockStorage(mockCtrl)
-	repo.EXPECT().Init(gomock.Any())
-	repo.EXPECT().GetUserIfExists(gomock.Any(), gomock.Eq("hello")).Return(
+	userRepo := mocks.NewMockUserStorage(mockCtrl)
+	balanceRepo := mocks.NewMockBalanceStorage(mockCtrl)
+	orderRepo := mocks.NewMockOrderStorage(mockCtrl)
+	userRepo.EXPECT().GetUserIfExists(gomock.Any(), gomock.Eq("hello")).Return(
 		&entities.UserModel{Login: "hello", PasswordHash: "123456", Session: "123"}, nil).MinTimes(0)
-	repo.EXPECT().UpdateUserSession(gomock.Any(), gomock.Any()).MinTimes(0)
-	repo.EXPECT().GetUserBySessionIfExists(gomock.Any(), gomock.Any()).Return(
+	userRepo.EXPECT().UpdateUserSession(gomock.Any(), gomock.Any()).MinTimes(0)
+	userRepo.EXPECT().GetUserBySessionIfExists(gomock.Any(), gomock.Any()).Return(
 		&entities.UserSessionModel{Login: "hello", Session: "123"}, nil).MinTimes(0)
 
 	expectedBalance := entities.BalanceModel{Login: "hello", Balance: 510.5, Spent: 330}
-	repo.EXPECT().GetBalance(gomock.Any(), gomock.Eq("hello")).Return(&expectedBalance, nil)
-	repo.EXPECT().UpdateBalance(gomock.Any(), entities.BalanceModel{Login: "hello", Balance: 10, Spent: 830.5})
-	repo.EXPECT().InsertNewBalanceWithdrawals(gomock.Any(), gomock.Any())
-	repo.EXPECT().GetBalanceWithdrawalsForUser(gomock.Any(), "hello").Return(
+	balanceRepo.EXPECT().GetBalance(gomock.Any(), gomock.Eq("hello")).Return(&expectedBalance, nil)
+	balanceRepo.EXPECT().UpdateBalance(gomock.Any(), entities.BalanceModel{Login: "hello", Balance: 10, Spent: 830.5})
+	balanceRepo.EXPECT().InsertNewBalanceWithdrawals(gomock.Any(), gomock.Any())
+	balanceRepo.EXPECT().GetBalanceWithdrawalsForUser(gomock.Any(), "hello").Return(
 		[]entities.BalanceWithdrawalsModel{{Login: "hello", OrderNum: "2377225624", Sum: 500.5, ProcessedAt: processedAt}}, nil)
 
-	server := NewGothServer(repo, "")
+	server := NewGothServer(balanceRepo, orderRepo, userRepo, "")
 	cookie := checkAuth(server, t)
 
 	for _, tt := range tests {

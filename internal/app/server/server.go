@@ -8,33 +8,27 @@ import (
 	"github.com/xbreathoflife/gophermart/internal/app/core"
 	"github.com/xbreathoflife/gophermart/internal/app/handler"
 	"github.com/xbreathoflife/gophermart/internal/app/storage"
-	"log"
 	"net/http"
 )
 
 type gophServer struct {
-	storage        storage.Storage
 	balanceHandler *handler.BalanceHandler
 	orderHandler   *handler.OrderHandler
 	userHandler    *handler.UserHandler
 }
 
-func NewGothServer(storage storage.Storage, serviceAddress string) *gophServer {
+func NewGothServer(balanceStorage storage.BalanceStorage, orderStorage storage.OrderStorage, userStorage storage.UserStorage, serviceAddress string) *gophServer {
 	ctx := context.Background()
-	err := storage.Init(ctx)
-	if err != nil {
-		log.Printf("error while initializing storage: %v", err)
-		return nil
-	}
-	balanceService := core.NewBalanceService(storage)
-	orderService := core.NewOrderService(storage, serviceAddress, ctx)
-	userService := core.NewUserService(storage)
+
+	balanceService := core.NewBalanceService(balanceStorage)
+	orderService := core.NewOrderService(orderStorage, balanceStorage, serviceAddress, ctx)
+	userService := core.NewUserService(userStorage, balanceStorage)
 
 	balanceHandler := handler.BalanceHandler{Service: balanceService, UserService: userService}
 	orderHandler := handler.OrderHandler{Service: orderService, UserService: userService}
 	userHandler := handler.UserHandler{Service: userService}
 
-	return &gophServer{storage: storage, balanceHandler: &balanceHandler, orderHandler: &orderHandler, userHandler: &userHandler}
+	return &gophServer{balanceHandler: &balanceHandler, orderHandler: &orderHandler, userHandler: &userHandler}
 }
 
 func (gs *gophServer) ServerHandler() *chi.Mux {

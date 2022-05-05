@@ -8,16 +8,17 @@ import (
 )
 
 type UserService struct {
-	Storage        storage.Storage
+	UserStorage    storage.UserStorage
+	BalanceStorage storage.BalanceStorage
 }
 
-func NewUserService(storage storage.Storage) *UserService {
-	service := UserService{Storage: storage}
+func NewUserService(userStorage storage.UserStorage, balanceStorage storage.BalanceStorage) *UserService {
+	service := UserService{UserStorage: userStorage, BalanceStorage: balanceStorage}
 	return &service
 }
 
 func (us *UserService) CheckUserExists(ctx context.Context, user entities.LoginRequest) error {
-	prevUser, err := us.Storage.GetUserIfExists(ctx, user.Login)
+	prevUser, err := us.UserStorage.GetUserIfExists(ctx, user.Login)
 	if err != nil {
 		return err
 	}
@@ -28,15 +29,15 @@ func (us *UserService) CheckUserExists(ctx context.Context, user entities.LoginR
 }
 
 func (us *UserService) InsertNewUser(ctx context.Context, user entities.UserModel) error {
-	err := us.Storage.InsertNewUser(ctx, user)
+	err := us.UserStorage.InsertNewUser(ctx, user)
 	if err != nil {
 		return err
 	}
-	return us.Storage.InsertNewBalance(ctx, entities.BalanceModel{Login: user.Login})
+	return us.BalanceStorage.InsertNewBalance(ctx, entities.BalanceModel{Login: user.Login})
 }
 
 func (us *UserService) CheckUserCredentials(ctx context.Context, user entities.LoginRequest) error {
-	prevUser, err := us.Storage.GetUserIfExists(ctx, user.Login)
+	prevUser, err := us.UserStorage.GetUserIfExists(ctx, user.Login)
 	if err != nil {
 		return err
 	}
@@ -48,11 +49,11 @@ func (us *UserService) CheckUserCredentials(ctx context.Context, user entities.L
 }
 
 func (us *UserService) UpdateUserSession(ctx context.Context, userSession entities.UserSessionModel) error {
-	return us.Storage.UpdateUserSession(ctx, userSession)
+	return us.UserStorage.UpdateUserSession(ctx, userSession)
 }
 
 func (us *UserService) GetUserBySession(ctx context.Context, session string) (*entities.UserSessionModel, error) {
-	sessionModel, err := us.Storage.GetUserBySessionIfExists(ctx, session)
+	sessionModel, err := us.UserStorage.GetUserBySessionIfExists(ctx, session)
 	if err != nil {
 		return nil, err
 	}

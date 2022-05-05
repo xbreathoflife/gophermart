@@ -15,13 +15,13 @@ import (
 const NewStatus = "NEW"
 
 type OrderService struct {
-	Storage storage.Storage
-	Accrual *AccrualService
+	OrderStorage storage.OrderStorage
+	Accrual      *AccrualService
 }
 
-func NewOrderService(storage storage.Storage, serviceAddress string, ctx context.Context) *OrderService {
-	accrual := NewAccrualService(storage, serviceAddress, ctx)
-	service := OrderService{Storage: storage, Accrual: accrual}
+func NewOrderService(orderStorage storage.OrderStorage, balanceStorage storage.BalanceStorage, serviceAddress string, ctx context.Context) *OrderService {
+	accrual := NewAccrualService(orderStorage, balanceStorage, serviceAddress, ctx)
+	service := OrderService{OrderStorage: orderStorage, Accrual: accrual}
 	return &service
 }
 
@@ -43,7 +43,7 @@ func (os *OrderService) CreateNewOrder(ctx context.Context, login string, orderN
 		return http.StatusUnprocessableEntity, errors.NewWrongDataError(orderNum)
 	}
 
-	order, err := os.Storage.GetOrderIfExists(ctx, orderNum)
+	order, err := os.OrderStorage.GetOrderIfExists(ctx, orderNum)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -54,7 +54,7 @@ func (os *OrderService) CreateNewOrder(ctx context.Context, login string, orderN
 		return http.StatusConflict, errors.NewDuplicateError(orderNum)
 	}
 
-	err = os.Storage.InsertNewOrder(ctx, entities.OrderModel{
+	err = os.OrderStorage.InsertNewOrder(ctx, entities.OrderModel{
 		OrderNum:   orderNum,
 		Login:      login,
 		UploadedAt: time.Now(),
@@ -70,7 +70,7 @@ func (os *OrderService) CreateNewOrder(ctx context.Context, login string, orderN
 }
 
 func (os *OrderService) GetOrdersForUser(ctx context.Context, login string) ([]entities.OrderResponse, error) {
-	orders, err := os.Storage.GetOrdersForUser(ctx, login)
+	orders, err := os.OrderStorage.GetOrdersForUser(ctx, login)
 	if err != nil {
 		return nil, err
 	}

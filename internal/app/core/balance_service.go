@@ -12,16 +12,16 @@ import (
 )
 
 type BalanceService struct {
-	Storage storage.Storage
+	BalanceStorage storage.BalanceStorage
 }
 
-func NewBalanceService(storage storage.Storage) *BalanceService {
-	service := BalanceService{Storage: storage}
+func NewBalanceService(storage storage.BalanceStorage) *BalanceService {
+	service := BalanceService{BalanceStorage: storage}
 	return &service
 }
 
 func (bs *BalanceService) GetUsersBalance(ctx context.Context, login string) (*entities.BalanceModel, error) {
-	balance, err := bs.Storage.GetBalance(ctx, login)
+	balance, err := bs.BalanceStorage.GetBalance(ctx, login)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func (bs *BalanceService) ProcessBalanceWithdraw(ctx context.Context, login stri
 		return http.StatusUnprocessableEntity, errors.NewWrongDataError(bw.Order)
 	}
 
-	balance, err := bs.Storage.GetBalance(ctx, login)
+	balance, err := bs.BalanceStorage.GetBalance(ctx, login)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -42,7 +42,7 @@ func (bs *BalanceService) ProcessBalanceWithdraw(ctx context.Context, login stri
 		return http.StatusPaymentRequired, errors2.New("not enough money")
 	}
 
-	err = bs.Storage.UpdateBalance(ctx, entities.BalanceModel{
+	err = bs.BalanceStorage.UpdateBalance(ctx, entities.BalanceModel{
 		Login:   login,
 		Balance: balance.Balance - bw.Sum,
 		Spent:   balance.Spent + bw.Sum,
@@ -51,7 +51,7 @@ func (bs *BalanceService) ProcessBalanceWithdraw(ctx context.Context, login stri
 		return http.StatusInternalServerError, err
 	}
 
-	err = bs.Storage.InsertNewBalanceWithdrawals(ctx, entities.BalanceWithdrawalsModel{
+	err = bs.BalanceStorage.InsertNewBalanceWithdrawals(ctx, entities.BalanceWithdrawalsModel{
 		Login:       login,
 		OrderNum:    bw.Order,
 		Sum:         bw.Sum,
@@ -65,7 +65,7 @@ func (bs *BalanceService) ProcessBalanceWithdraw(ctx context.Context, login stri
 }
 
 func (bs *BalanceService) GetWithdrawalsForUser(ctx context.Context, login string) ([]entities.BalanceWithdrawalsResponse, error) {
-	withdrawalHistory, err := bs.Storage.GetBalanceWithdrawalsForUser(ctx, login)
+	withdrawalHistory, err := bs.BalanceStorage.GetBalanceWithdrawalsForUser(ctx, login)
 	if err != nil {
 		return nil, err
 	}
