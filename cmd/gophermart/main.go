@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"github.com/xbreathoflife/gophermart/config"
 	"github.com/xbreathoflife/gophermart/internal/app/server"
 	"github.com/xbreathoflife/gophermart/internal/app/storage"
@@ -33,8 +35,17 @@ func main() {
 	parseFlags(&conf)
 
 	dbStorage := storage.NewDBStorage(conf.ConnString)
+	err := dbStorage.Init(context.Background())
+	if err != nil {
+		fmt.Printf("Error while initializing storage: %v\n", err)
+		return
+	}
 
-	gophermartServer := server.NewGothServer(dbStorage, conf.ServiceAddress)
+	balanceStorage := storage.NewBalanceStorage(conf.ConnString)
+	orderStorage := storage.NewOrderStorage(conf.ConnString)
+	userStorage := storage.NewUserStorage(conf.ConnString)
+
+	gophermartServer := server.NewGothServer(balanceStorage, orderStorage, userStorage, conf.ServiceAddress)
 	r := gophermartServer.ServerHandler()
 
 	log.Fatal(http.ListenAndServe(conf.Address, r))
